@@ -17,7 +17,20 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+    if(cmd == NULL)
+    {
+        return false;
+    }
+
+    int return_val;
+    //Call System
+    return_val = system(cmd);
+    if(return_val != -1)
+    {
+        return true;
+    }
+    
+        return false;
 }
 
 /**
@@ -58,9 +71,45 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    int status;
+    //Call fork
+    pid_t child_pid = fork();
 
-    va_end(args);
+    if(child_pid == -1)
+    {
+        printf("proc failed\n");
+        return false;
+    }
 
+    if (0 == child_pid)
+    {
+        // Call execv
+       if(-1 == execv(command[0], command))
+       {
+            printf("***ERROR: %s %s\n",command[0], strerror(errno));
+            printf("execv failed\n");
+            _exit(EXIT_FAILURE);
+       }
+    }  
+    else{
+
+        //Wait for Child Process to end
+        if(child_pid != waitpid(child_pid,&status ,0))
+        {
+            printf("waitpid failed\n");
+            return false;
+        }
+
+        if(WIFEXITED(status))
+        {
+            if(WEXITSTATUS(status))
+            {
+                return false;
+            }
+        }
+        va_end(args);
+    }
+    
     return true;
 }
 
@@ -82,8 +131,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
-
+    //command[count] = command[count];
 
 /*
  * TODO
@@ -91,9 +139,73 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   redirect standard out to a file specified by outputfile.
  *   The rest of the behaviour is same as do_exec()
  *
-*/
+ */
+    int status;
+    pid_t child_pid;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
 
+    if(fd < 0)
+    {
+        printf("file not opened\n");
+    }
+
+    //Create child process
+    child_pid = fork();
+    if (-1 == child_pid)
+    {
+        printf("Error in Fork\n");
+        close(fd);
+        return false;
+    }
+
+    printf("Process with PID:%d forked\n", child_pid);
+
+
+    if(0 == child_pid){
+        //Redirect stdout to file descriptor
+        if(-1 == dup2(fd, 1))
+        {
+            printf("dup failed\n");
+            close(fd);
+            return false;
+        }
+        close(fd);
+        
+        // Call execv
+       if(-1 == execv(command[0], command))
+       {
+            printf("ERROR: %s %s\n", command[0],strerror(errno));
+            printf("execv failed\n");
+            _exit(EXIT_FAILURE);
+       }
+
+        perror("execv failed:");
+        close(fd);
+        _exit(EXIT_FAILURE);
+    }          
+    else
+    {
+        // Wait for Child Process to end
+        if (child_pid != waitpid(child_pid, &status, 0))
+        {
+            printf("waitpid failed\n");
+            close(fd);
+            return false;
+        }
+
+        if (WIFEXITED(status))
+        {
+            if (WEXITSTATUS(status))
+            {
+                printf("Error exiting child process\n");
+                close(fd);
+                return false;
+            }
+        }
+        printf("Returned from Child with %d status\n", status);
+    }
+
+    close(fd);
     va_end(args);
-
     return true;
 }

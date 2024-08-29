@@ -54,7 +54,8 @@ then
     make clean
 fi
 
-make
+#Removed for Assignment part-1
+#make
 
 for i in $( seq 1 $NUMFILES)
 do
